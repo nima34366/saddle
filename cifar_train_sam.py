@@ -113,8 +113,8 @@ def main_worker(gpu, ngpus_per_node, args):
     global best_acc1
     args.gpu = gpu
     if args.log_results:
-        wandb.init(project="long-tail",
-                                   entity="active-learning", name=args.store_name)
+        wandb.init(project="saddle",
+                                   entity="nimawickramasinghe", name=args.store_name)
         wandb.config.update(args)
     if args.gpu is not None:
         print("Use GPU: {} for training".format(args.gpu))
@@ -266,7 +266,7 @@ def main_worker(gpu, ngpus_per_node, args):
         print(output_best)
         log_testing.write(output_best + '\n')
         log_testing.flush()
-
+        
         save_checkpoint_new(args, {
             'epoch': epoch + 1,
             'arch': args.arch,
@@ -287,7 +287,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args, log, tf_writer
     
     # switch to train mode
     model.train()
-
+    
     end = time.time()
     for i, (input, target) in enumerate(train_loader):
         # measure data loading time

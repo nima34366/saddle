@@ -1,6 +1,10 @@
 .swp
 .pth
 *.pth.tar
+log
+checkpoint
+data
+wandb
 # Byte-compiled / optimized / DLL files
 
 __pycache__/
