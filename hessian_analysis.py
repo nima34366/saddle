@@ -125,7 +125,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     # create model
     print("=> creating model '{}'".format(args.arch))
-    num_classes =  10
+    num_classes = 100 if args.dataset == 'cifar100' else 10
     use_norm = True if args.loss_type == 'LDAM' else False
     model = models.__dict__[args.arch](num_classes=num_classes, use_norm=use_norm)
 
@@ -141,12 +141,13 @@ def main_worker(gpu, ngpus_per_node, args):
         if os.path.isfile(args.resume):
             print("=> loading checkpoint '{}'".format(args.resume))
             checkpoint = torch.load(args.resume, map_location='cuda:0')
+            # print(checkpoint.keys())
             args.start_epoch = checkpoint['epoch']
-            best_acc1 = checkpoint['best_acc1']
-            print("best acc:" , best_acc1)
-            if args.gpu is not None:
-                # best_acc1 may be from a checkpoint from a different GPU
-                best_acc1 = best_acc1.to(args.gpu)
+            # best_acc1 = checkpoint['best_acc1']
+            # print("best acc:" , best_acc1)
+            # if args.gpu is not None:
+            #     # best_acc1 may be from a checkpoint from a different GPU
+            #     best_acc1 = best_acc1.to(args.gpu)
             model.load_state_dict(checkpoint['state_dict'])
             #optimizer.load_state_dict(checkpoint['optimizer'])
             print("=> loaded checkpoint '{}' (epoch {})"
@@ -355,7 +356,7 @@ def get_esd_plot(eigenvalues, weights, class_idx):
     lambda_ratio = lambda_max/lambda_min
 
 
-    wandb.log({"esd plot{class_idx}":plt})
+    wandb.log({"esd_plot-"+str(class_idx) : plt})
     wandb.log({f"lambda_min-{class_idx}":lambda_min, f"lambda_max-{class_idx}":lambda_max, f"lambda_ratio-{class_idx}":lambda_ratio})
     #plt.savefig('example.pdf')
 

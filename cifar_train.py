@@ -104,8 +104,8 @@ def main_worker(gpu, ngpus_per_node, args):
     global best_acc1
     args.gpu = gpu
     if args.log_results:
-        wandb.init(project="long-tail",
-                                   entity="active-learning", name=args.store_name)
+        wandb.init(project="saddle",
+                                   entity="nimawickramasinghe", name=args.store_name)
         wandb.config.update(args)
     if args.gpu is not None:
         print("Use GPU: {} for training".format(args.gpu))

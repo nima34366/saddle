@@ -5,6 +5,7 @@ log
 checkpoint
 data
 wandb
+env2
 # Byte-compiled / optimized / DLL files
 
 __pycache__/

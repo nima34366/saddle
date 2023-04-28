@@ -133,7 +133,7 @@ We also release the code to compute the spectral density and analyse the loss la
 
 Sample command below:
 
-`python hessian_analysis.py --gpu 0 --seed 1 --exp_str sample --resume <checkpoint_path> --dataloader_hess train --log_results`
+`python hessian_analysis.py --gpu 0 --seed 1 --exp_str sample --resume <checkpoint_path> --dataloader_hess train --log_results --loss_type LDAM`
 
 On running this command, the Eigen Spectral density of per-class loss is computed and the class-wise spectral density is plotted along with the maximum eigenvalue and the trace of the Hessian.
 
