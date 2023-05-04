@@ -241,7 +241,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 num_workers=args.workers, pin_memory=True)
         val_acc = validate(class_loader, model, criterion, None, args, log=None, tf_writer=None, class_idx=class_idx)
         print(f"Val acc for class {class_idx} is {val_acc}")
-        hessix  an_comp = hessian(model, criterion, dataloader=class_loader, cuda=True)
+        hessian_comp = hessian(model, criterion, dataloader=class_loader, cuda=True)
         top_eigenvalues, _ = hessian_comp.eigenvalues()
         trace = hessian_comp.trace()
         density_eigen, density_weight = hessian_comp.density()
