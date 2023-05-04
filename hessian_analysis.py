@@ -89,6 +89,8 @@ best_acc1 = 0
 
 def main():
     args = parser.parse_args()
+    args.loss_type_hess = args.loss_type
+    args.train_rule_hess = args.train_rule
     name = args.resume.split('/')[-2]
     args.store_name = '_'.join(['hessian',name,args.dataloader_hess, args.loss_type_hess, args.train_rule_hess, args.exp_str])
     print("_________")
@@ -217,7 +219,17 @@ def main_worker(gpu, ngpus_per_node, args):
     all_trace = []
     all_eigenvalues = []
     print('clas_num_list',cls_num_list)
-    for class_idx, num_samples in enumerate(cls_num_list):
+    if len(cls_num_list) > 10:
+    # get the first last and middle 5 samples from cls_num_list
+        new_cls_num_list = []
+        for i in range(len(cls_num_list)):
+            mid = len(cls_num_list)//2
+            if i in [0,1,2,3,4,mid-2,mid-1,mid,mid+1,mid+2,-1,-2,-3,-4,-5]:
+                new_cls_num_list.append(cls_num_list[i])
+    else:
+        new_cls_num_list = cls_num_list
+
+    for class_idx, num_samples in enumerate(new_cls_num_list):
         if args.dataloader_hess=="train":
             print(f"Number of samples in class{class_idx}: {num_samples}")
         cls_indices = [i for i in range(len(hess_dataset.targets)) if hess_dataset.targets[i]==class_idx]
@@ -227,9 +239,9 @@ def main_worker(gpu, ngpus_per_node, args):
         class_loader = torch.utils.data.DataLoader(
                 class_idx_dataset, batch_size=args.batch_size, shuffle=False,
                 num_workers=args.workers, pin_memory=True)
-        validate(class_loader, model, criterion, None, args, log=None, tf_writer=None, class_idx=class_idx)
-
-        hessian_comp = hessian(model, criterion, dataloader=class_loader, cuda=True)
+        val_acc = validate(class_loader, model, criterion, None, args, log=None, tf_writer=None, class_idx=class_idx)
+        print(f"Val acc for class {class_idx} is {val_acc}")
+        hessix  an_comp = hessian(model, criterion, dataloader=class_loader, cuda=True)
         top_eigenvalues, _ = hessian_comp.eigenvalues()
         trace = hessian_comp.trace()
         density_eigen, density_weight = hessian_comp.density()
@@ -245,7 +257,7 @@ def main_worker(gpu, ngpus_per_node, args):
         print('\n***Trace: ', np.mean(trace))
         all_trace.append(np.mean(trace))
         all_eigenvalues.append(top_eigenvalues[0])
-        get_esd_plot(density_eigen, density_weight, class_idx)
+        get_esd_plot(density_eigen, density_weight, class_idx, val_acc)
     
     print("Trace:", all_trace)
     print("Eigenvalues:", all_eigenvalues)
@@ -342,7 +354,7 @@ def adjust_learning_rate(optimizer, epoch, args):
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
-def get_esd_plot(eigenvalues, weights, class_idx):
+def get_esd_plot(eigenvalues, weights, class_idx, val_acc):
     density, grids = density_generate(eigenvalues, weights)
     plt.semilogy(grids, density + 1.0e-7)
     plt.ylabel('Density (Log Scale)', fontsize=14, labelpad=10)
@@ -350,14 +362,15 @@ def get_esd_plot(eigenvalues, weights, class_idx):
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
     plt.axis([np.min(eigenvalues) - 1, np.max(eigenvalues) + 1, None, None])
+    plt.legend([f"lambda_min: {np.min(eigenvalues)} <br> lambda_max: {np.max(eigenvalues)} <br> lambda_ratio: {np.max(eigenvalues)/np.min(eigenvalues)} <br> val_acc: {val_acc}"], handlelength=0, loc='center left')
     plt.tight_layout()
     lambda_min = np.min(eigenvalues)
     lambda_max = np.max(eigenvalues)
     lambda_ratio = lambda_max/lambda_min
 
 
-    wandb.log({"esd_plot-"+str(class_idx) : plt})
-    wandb.log({f"lambda_min-{class_idx}":lambda_min, f"lambda_max-{class_idx}":lambda_max, f"lambda_ratio-{class_idx}":lambda_ratio})
+    wandb.log({f"esd plot-{class_idx}" : plt})
+    wandb.log({f"lambda_min-{class_idx}":lambda_min, f"lambda_max-{class_idx}":lambda_max, f"lambda_ratio-{class_idx}":lambda_ratio, f"val_acc-{class_idx}":val_acc})
     #plt.savefig('example.pdf')
 
 
