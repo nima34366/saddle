@@ -224,12 +224,14 @@ def main_worker(gpu, ngpus_per_node, args):
         new_cls_num_list = []
         for i in range(len(cls_num_list)):
             mid = len(cls_num_list)//2
-            if i in [0,1,2,3,4,mid-2,mid-1,mid,mid+1,mid+2,-1,-2,-3,-4,-5]:
+            class_indexes = [0,1,2,3,4,mid-2,mid-1,mid,mid+1,mid+2,-1,-2,-3,-4,-5]
+            if i in class_indexes:
                 new_cls_num_list.append(cls_num_list[i])
     else:
         new_cls_num_list = cls_num_list
+        class_indexes = [i for i in range(len(cls_num_list))]
 
-    for class_idx, num_samples in enumerate(new_cls_num_list):
+    for class_idx, num_samples in zip(class_indexes,new_cls_num_list):
         if args.dataloader_hess=="train":
             print(f"Number of samples in class{class_idx}: {num_samples}")
         cls_indices = [i for i in range(len(hess_dataset.targets)) if hess_dataset.targets[i]==class_idx]
