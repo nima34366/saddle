@@ -224,7 +224,8 @@ def main_worker(gpu, ngpus_per_node, args):
         new_cls_num_list = []
         for i in range(len(cls_num_list)):
             mid = len(cls_num_list)//2
-            class_indexes = [0,1,2,3,4,mid-2,mid-1,mid,mid+1,mid+2,-1,-2,-3,-4,-5]
+            maxx = len(cls_num_list)-1
+            class_indexes = [0,1,2,3,4,mid-2,mid-1,mid,mid+1,mid+2,maxx-4,maxx-3,maxx-2,maxx-1,maxx]
             if i in class_indexes:
                 new_cls_num_list.append(cls_num_list[i])
     else:
