@@ -26,11 +26,11 @@
 # python hessian_analysis.py --exp_str sample --resume checkpoint/cifar100_resnet32_LDAM_DRW_exp_0.01_seed_None_0/ckpt.best.pth.tar --log_results --loss_type LDAM --dataset cifar100 --dataloader_hess val
 
 # #CIFAR100-LT (SAM)
-python cifar_train_sam.py --imb_type exp --imb_factor 0.01 --loss_type CE --train_rule None --rho 0.8 --rho_schedule none --log_results --dataset cifar100
+# python cifar_train_sam.py --imb_type exp --imb_factor 0.01 --loss_type CE --train_rule None --rho 0.8 --rho_schedule none --log_results --dataset cifar100
 # python cifar_train_sam.py --imb_type exp --imb_factor 0.01 --loss_type CE --train_rule DRW --rho 0.8 --rho_schedule none --log_results --dataset cifar100
 # python cifar_train_sam.py --imb_type exp --imb_factor 0.01 --loss_type LDAM --train_rule DRW --rho 0.8 --rho_schedule none --log_results --dataset cifar100
 
-python hessian_analysis.py --exp_str sample --resume checkpoint/cifar100_resnet32_CE_None_exp_0.01_sam_0.8_sched_none_seed_None_0/ckpt.best.pth.tar --log_results --loss_type CE --dataset cifar100 --dataloader_hess val
+# python hessian_analysis.py --exp_str sample --resume checkpoint/cifar100_resnet32_CE_None_exp_0.01_sam_0.8_sched_none_seed_None_0/ckpt.best.pth.tar --log_results --loss_type CE --dataset cifar100 --dataloader_hess val
 # python hessian_analysis.py --exp_str sample --resume checkpoint/cifar100_resnet32_CE_DRW_exp_0.01_sam_0.8_sched_none_seed_None_0/ckpt.best.pth.tar --log_results --loss_type CE --dataset cifar100 --dataloader_hess val
 # python hessian_analysis.py --exp_str sample --resume checkpoint/cifar100_resnet32_LDAM_DRW_exp_0.01_sam_0.8_sched_none_seed_None_0/ckpt.best.pth.tar --log_results --loss_type LDAM --dataset cifar100 --dataloader_hess val
 
@@ -43,7 +43,7 @@ python hessian_analysis.py --exp_str sample --resume checkpoint/cifar100_resnet3
 # python inat_train_sam.py --imb_type exp --imb_factor 0.01 --data_path inat_18 --loss_type LDAM --train_rule DRW --dataset inat_18 -b 256 --epochs 90 --arch resnet50 --cos_lr --rho_schedule step --lr 0.1 --rho_steps 0.05 0.1 0.5 0.5 --log_results --margin 0.3 --wd 0.0001
 
 # #ImageNet-LT (SGD)
-# python imnet_train.py --imb_type exp --imb_factor 0.01 --data_path ImageNet --loss_type CE --train_rule DRW --dataset imagenet -b 256 --epochs 90 --arch resnet50 --cos_lr --log_results --lr 0.2 --seed 1
+python3 imnet_train.py --imb_type exp --imb_factor 0.01 --data_path datasets/Imagenet/imagenet --loss_type CE --train_rule None --dataset imagenet -b 128 --epochs 90 --arch resnet50 --cos_lr --lr 0.2
 # python imnet_train.py --imb_type exp --imb_factor 0.01 --data_path ImageNet --loss_type LDAM --train_rule DRW --dataset imagenet -b 256 --epochs 90 --arch resnet50 --log_results --wd 2e-4 --lr 0.2 --cos_lr --margin 0.3 
 
 # #ImageNet-LT (SAM)

@@ -25,6 +25,16 @@ from datasets.imagenet import ImageNet_LT
 from losses import LDAMLoss, FocalLoss
 import wandb
 
+import torch_xla.distributed.xla_multiprocessing as xmp
+import torch_xla.core.xla_model as xm
+
+
+os.environ['XRT_TPU_CONFIG'] = "localservice;0;localhost:51011"
+os.environ['XLA_USE_BF16']                 = '1'
+
+device = xm.xla_device()
+
+
 parser = argparse.ArgumentParser(description='PyTorch Training')
 parser.add_argument('--dataset', default='imagenet', help='dataset setting')
 parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet50'),
@@ -105,7 +115,8 @@ def main():
         warnings.warn('You have chosen a specific GPU. This will completely '
                       'disable data parallelism.')
 
-    ngpus_per_node = torch.cuda.device_count()
+    # ngpus_per_node = torch.cuda.device_count()
+    ngpus_per_node = 0
     main_worker(args.gpu, ngpus_per_node, args)
 
 
@@ -116,8 +127,8 @@ def main_worker(gpu, ngpus_per_node, args):
     args.med_class_idx = [390,835]
     args.tail_class_idx = [835,1000]
     if args.log_results:
-        wandb.init(project="long-tail",
-                                   entity="long-tail", name=args.store_name,
+        wandb.init(project="saddle",
+                                   entity="nimawickramasinghe", name=args.store_name,
                                    dir=args.wandb_dir)
         wandb.config.update(args)
     if args.gpu is not None:
@@ -137,9 +148,9 @@ def main_worker(gpu, ngpus_per_node, args):
       print("[INFORMATION] Using normed linear")
     else:
       model.fc = nn.Linear(2048, num_classes)
-    model = model.cuda(args.gpu)
+    model = model.to(device)
     # DataParallel will divide and allocate batch_size to all available GPUs
-    model = torch.nn.DataParallel(model).cuda()
+    model = torch.nn.DataParallel(model).to(device)
     optimizer = torch.optim.SGD(model.parameters(), args.lr,
                                 momentum=args.momentum,
                                 weight_decay=args.weight_decay)
@@ -151,7 +162,7 @@ def main_worker(gpu, ngpus_per_node, args):
     if args.resume:
         if os.path.isfile(args.resume):
             print("[INFORMATION] loading checkpoint '{}'".format(args.resume))
-            checkpoint = torch.load(args.resume, map_location='cuda:0')
+            checkpoint = torch.load(args.resume, map_location=device)
             args.start_epoch = checkpoint['epoch']
             best_acc1 = checkpoint['best_acc1']
             if args.gpu is not None:
@@ -217,7 +228,7 @@ def main_worker(gpu, ngpus_per_node, args):
             train_sampler = None  
             per_cls_weights = None 
         elif args.train_rule == 'Resample':
-            train_sampler = ImbalancedDatasetSampler(train_dataset)
+            train_sampler = ImbalancedDatasetSampler(dataset)
             per_cls_weights = None
         elif args.train_rule == 'Reweight':
             train_sampler = None
@@ -225,7 +236,7 @@ def main_worker(gpu, ngpus_per_node, args):
             effective_num = 1.0 - np.power(beta, cls_num_list)
             per_cls_weights = (1.0 - beta) / np.array(effective_num)
             per_cls_weights = per_cls_weights / np.sum(per_cls_weights) * len(cls_num_list)
-            per_cls_weights = torch.FloatTensor(per_cls_weights).cuda(args.gpu)
+            per_cls_weights = torch.FloatTensor(per_cls_weights).to(device)
         elif args.train_rule == 'DRW':
             train_sampler = None
             idx = epoch // 60
@@ -233,18 +244,18 @@ def main_worker(gpu, ngpus_per_node, args):
             effective_num = 1.0 - np.power(betas[idx], cls_num_list)
             per_cls_weights = (1.0 - betas[idx]) / np.array(effective_num)
             per_cls_weights = per_cls_weights / np.sum(per_cls_weights) * len(cls_num_list)
-            per_cls_weights = torch.FloatTensor(per_cls_weights).cuda(args.gpu)
+            per_cls_weights = torch.FloatTensor(per_cls_weights).to(device)
         else:
             warnings.warn('Sample rule is not listed')
         
         if args.loss_type == 'CE':
-            criterion = nn.CrossEntropyLoss(weight=per_cls_weights).cuda(args.gpu)
+            criterion = nn.CrossEntropyLoss(weight=per_cls_weights).to(device)
         elif args.loss_type == 'LDAM':
             print("[INFORMATION] LDAM is being used")
             print("[INFORMATION] margin value being used is ", args.margin)
-            criterion = LDAMLoss(cls_num_list=cls_num_list, max_m=args.margin, s=30, weight=per_cls_weights).cuda(args.gpu)
+            criterion = LDAMLoss(cls_num_list=cls_num_list, max_m=args.margin, s=30, weight=per_cls_weights).to(device)
         elif args.loss_type == 'Focal':
-            criterion = FocalLoss(weight=per_cls_weights, gamma=1).cuda(args.gpu)
+            criterion = FocalLoss(weight=per_cls_weights, gamma=1).to(device)
         else:
             warnings.warn('Loss type is not listed')
             return
@@ -306,9 +317,8 @@ def train(train_loader, model, criterion, optimizer, epoch, args, log, tf_writer
         # measure data loading time
         data_time.update(time.time() - end)
 
-        if args.gpu is not None:
-            input = input.cuda(args.gpu, non_blocking=True)
-        target = target.cuda(args.gpu, non_blocking=True)
+        input = input.to(device)
+        target = target.to(device)
 
         # compute output
         output = model(input)
@@ -326,8 +336,8 @@ def train(train_loader, model, criterion, optimizer, epoch, args, log, tf_writer
         # compute gradient and do SGD step
         optimizer.zero_grad()
         loss.backward()
-        optimizer.step()
-
+        # optimizer.step()
+        xm.optimizer_step(optimizer)
         # measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()
@@ -363,9 +373,8 @@ def validate(val_loader, model, criterion, epoch, args, log=None, tf_writer=None
     with torch.no_grad():
         end = time.time()
         for i, (input, target) in enumerate(val_loader):
-            if args.gpu is not None:
-                input = input.cuda(args.gpu, non_blocking=True)
-            target = target.cuda(args.gpu, non_blocking=True)
+            input = input.to(device)
+            target = target.to(device)
 
             # compute output
             output = model(input) #bs, num_classes
@@ -428,6 +437,19 @@ def validate(val_loader, model, criterion, epoch, args, log=None, tf_writer=None
 
     return top1.avg
 
+def adjust_learning_rate(optimizer, epoch, args):
+    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
+    epoch = epoch + 1
+    if epoch <= 5:
+        lr = args.lr * epoch / 5
+    elif epoch > 180:
+        lr = args.lr * 0.0001
+    elif epoch > 160:
+        lr = args.lr * 0.01
+    else:
+        lr = args.lr
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
 
 if __name__ == '__main__':
     main()
