@@ -29,7 +29,7 @@ import matplotlib.patheffects as PathEffects
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
-
+import pandas as pd
 
 model_names = sorted(name for name in models.__dict__
     if name.islower() and not name.startswith("__")
@@ -249,9 +249,6 @@ def main_worker(gpu, ngpus_per_node, args):
         trace = hessian_comp.trace()
         density_eigen, density_weight = hessian_comp.density()
         save_numpy(args, class_idx, density_eigen, density_weight)
-
-
-
         print("The type of density_eigen is ", type(density_eigen))
         print("The type of density_weight is ", type(density_weight))
         print("The density eigen ", density_eigen)
@@ -261,7 +258,6 @@ def main_worker(gpu, ngpus_per_node, args):
         all_trace.append(np.mean(trace))
         all_eigenvalues.append(top_eigenvalues[0])
         get_esd_plot(density_eigen, density_weight, class_idx, val_acc)
-    
     print("Trace:", all_trace)
     print("Eigenvalues:", all_eigenvalues)
 
@@ -359,22 +355,33 @@ def adjust_learning_rate(optimizer, epoch, args):
 
 def get_esd_plot(eigenvalues, weights, class_idx, val_acc):
     density, grids = density_generate(eigenvalues, weights)
-    plt.semilogy(grids, density + 1.0e-7)
-    plt.ylabel('Density (Log Scale)', fontsize=14, labelpad=10)
-    plt.xlabel('Eigenvalue', fontsize=14, labelpad=10)
-    plt.xticks(fontsize=14)
-    plt.yticks(fontsize=14)
-    plt.axis([np.min(eigenvalues) - 1, np.max(eigenvalues) + 1, None, None])
-    plt.legend([f"lambda_min: {np.min(eigenvalues)} <br> lambda_max: {np.max(eigenvalues)} <br> lambda_ratio: {np.max(eigenvalues)/np.min(eigenvalues)} <br> val_acc: {val_acc}"], handlelength=0, loc='center left')
-    plt.tight_layout()
+    # plt.semilogy(grids, density + 1.0e-7)
+    # plt.ylabel('Density (Log Scale)', fontsize=14, labelpad=10)
+    # plt.xlabel('Eigenvalue', fontsize=14, labelpad=10)
+    # plt.xticks(fontsize=14)
+    # plt.yticks(fontsize=14)
+    # plt.axis([np.min(eigenvalues) - 1, np.max(eigenvalues) + 1, None, None])
+    # plt.legend([f"lambda_min: {np.min(eigenvalues)} <br> lambda_max: {np.max(eigenvalues)} <br> lambda_ratio: {np.max(eigenvalues)/np.min(eigenvalues)} <br> val_acc: {val_acc}"], handlelength=0, loc='center left')
+    # plt.tight_layout()
     lambda_min = np.min(eigenvalues)
     lambda_max = np.max(eigenvalues)
     lambda_ratio = lambda_max/lambda_min
 
 
-    wandb.log({f"esd plot-{class_idx}" : plt})
-    wandb.log({f"lambda_min-{class_idx}":lambda_min, f"lambda_max-{class_idx}":lambda_max, f"lambda_ratio-{class_idx}":lambda_ratio, f"val_acc-{class_idx}":val_acc})
+    # wandb.log({f"esd plot-{class_idx}" : plt})
+
+    data = pd.DataFrame(columns = ['Eigenvalue', 'Density'])
+    data['Eigenvalue'] = grids
+    data['Density'] = density + 1.0e-7
+    data = wandb.Table(dataframe=data)
+    chart = wandb.plot_table(vega_spec_name='nimawickramasinghe/logline', data_table=data, fields={'x':'Eigenvalue', 'y':'Density'})
+    # wandb.log({f"esd_plot-{class_idx}": chart})
+
+    # wandb.log('eigenvalue_density', table)
+    # wandb.log({f"esd plot-{class_idx}" : wandb.plot.line(table, 'Eigenvalue', 'Density')})
+    # wandb.log({f"lambda_min-{class_idx}":lambda_min, f"lambda_max-{class_idx}":lambda_max, f"lambda_ratio-{class_idx}":lambda_ratio, f"val_acc-{class_idx}":val_acc})
     #plt.savefig('example.pdf')
+    return data
 
 
 def density_generate(eigenvalues,

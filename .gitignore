@@ -6,6 +6,7 @@ checkpoint
 data
 wandb
 env2
+embeddings
 # Byte-compiled / optimized / DLL files
 
 __pycache__/
