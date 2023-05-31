@@ -225,13 +225,17 @@ def main_worker(gpu, ngpus_per_node, args):
         for i in range(len(cls_num_list)):
             mid = len(cls_num_list)//2
             maxx = len(cls_num_list)-1
-            class_indexes = [0,1,2,3,4,mid-2,mid-1,mid,mid+1,mid+2,maxx-4,maxx-3,maxx-2,maxx-1,maxx]
+            class_indexes = [0,1,2,3,4,mid-2,mid-1,mid,mid+1,mid+2,maxx-4,maxx-3,maxx-2,maxx-1,maxx,-1]
             if i in class_indexes:
                 new_cls_num_list.append(cls_num_list[i])
+            new_cls_num_list.append(len(hess_dataset.targets))
     else:
         new_cls_num_list = cls_num_list
         class_indexes = [i for i in range(len(cls_num_list))]
-
+        class_indexes.append(-1)
+        new_cls_num_list.append(len(hess_dataset.targets))
+    
+    val_accs = []
     for class_idx, num_samples in zip(class_indexes,new_cls_num_list):
         if args.dataloader_hess=="train":
             print(f"Number of samples in class{class_idx}: {num_samples}")
@@ -239,10 +243,16 @@ def main_worker(gpu, ngpus_per_node, args):
         class_idx_dataset = torch.utils.data.Subset(hess_dataset, cls_indices)
         if args.dataloader_hess=="val":
             print(f"Number of samples in class{class_idx}: {len(class_idx_dataset)}")
-        class_loader = torch.utils.data.DataLoader(
-                class_idx_dataset, batch_size=args.batch_size, shuffle=False,
-                num_workers=args.workers, pin_memory=True)
+        if class_idx==-1:
+            class_loader = torch.utils.data.DataLoader(
+                    hess_dataset, batch_size=args.batch_size, shuffle=False,
+                    num_workers=args.workers, pin_memory=True)
+        else:
+            class_loader = torch.utils.data.DataLoader(
+                    class_idx_dataset, batch_size=args.batch_size, shuffle=False,
+                    num_workers=args.workers, pin_memory=True)
         val_acc = validate(class_loader, model, criterion, None, args, log=None, tf_writer=None, class_idx=class_idx)
+        val_accs.append(val_acc)
         print(f"Val acc for class {class_idx} is {val_acc}")
         hessian_comp = hessian(model, criterion, dataloader=class_loader, cuda=True)
         top_eigenvalues, _ = hessian_comp.eigenvalues()
@@ -257,7 +267,12 @@ def main_worker(gpu, ngpus_per_node, args):
         print('\n***Trace: ', np.mean(trace))
         all_trace.append(np.mean(trace))
         all_eigenvalues.append(top_eigenvalues[0])
-        get_esd_plot(density_eigen, density_weight, class_idx, val_acc)
+        # get_esd_plot(density_eigen, density_weight, class_idx, val_acc)
+    df_val_accs = pd.DataFrame({
+        'Class' : class_indexes,
+        'Accuracy' : val_accs
+    })
+    df_val_accs.to_csv(f'{args.root_model}/{args.store_name}/accuracies.csv')
     print("Trace:", all_trace)
     print("Eigenvalues:", all_eigenvalues)
 

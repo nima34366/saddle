@@ -58,6 +58,7 @@ class hessian():
             self.full_dataset = True
 
         if cuda:
+            print('\nCUDA available for hessian\n')
             self.device = 'cuda'
         else:
             self.device = 'cpu'
