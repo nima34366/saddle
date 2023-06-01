@@ -8,6 +8,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
+import torch_xla.core.xla_model as xm
 
 class ImbalancedDatasetSampler(torch.utils.data.sampler.Sampler):
 
@@ -136,10 +137,14 @@ def save_numpy(args, clss_idx, density_eigen, density_weight):
     np.save(weights_filename, density_weight)
     
 
-def save_checkpoint(args, state, is_best):
+def save_checkpoint(args, state, is_best, device = None):
     
     filename = '%s/%s/ckpt.pth.tar' % (args.root_model, args.store_name)
-    torch.save(state, filename)
+    if device == None:
+        torch.save(state, filename)
+    else:
+        xm.save(state, filename)
+    
     if is_best:
         shutil.copyfile(filename, filename.replace('pth.tar', 'best.pth.tar'))
 
@@ -157,7 +162,7 @@ def save_checkpoint_new(args, state, is_best, save_freq):
         torch.save(state, filename)
 
 
-class AverageMeter(object):
+class AverageMeter():
     
     def __init__(self, name, fmt=':f'):
         self.name = name

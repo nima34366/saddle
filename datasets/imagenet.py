@@ -9,6 +9,9 @@ from torchvision import transforms
 from torch.utils.data import Dataset
 
 from .sampler import ClassAwareSampler
+from torch.utils.data import DistributedSampler
+import torch_xla.distributed.xla_multiprocessing as xmp
+import torch_xla.core.xla_model as xm
 
 
 class LT_Dataset(Dataset):
@@ -45,6 +48,7 @@ class LT_Dataset(Dataset):
         return len(self.targets)
 
     def __getitem__(self, index):
+        # print('image in',index)
         path = self.img_path[index]
         target = self.targets[index]
 
@@ -52,6 +56,7 @@ class LT_Dataset(Dataset):
             sample = Image.open(f).convert('RGB')
         if self.transform is not None:
             sample = self.transform(sample)
+        # print('image out',index)
         return sample, target 
     
 
@@ -68,7 +73,6 @@ class LT_Dataset_Eval(Dataset):
             for line in f:
                 self.img_path.append(os.path.join(root, line.split()[0]))
                 self.targets.append(int(line.split()[1]))
-
         self.targets = np.array(self.class_map)[self.targets].tolist()
 
     def __len__(self):
@@ -115,10 +119,10 @@ class ImageNet_LT(object):
         
         self.cls_num_list = train_dataset.cls_num_list
 
-        self.dist_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset) if distributed else None
+        self.dist_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, xm.xrt_world_size(), xm.get_ordinal(), shuffle=True) if distributed else None
         self.train_instance = torch.utils.data.DataLoader(
             train_dataset,
-            batch_size=batch_size, shuffle=True,
+            batch_size=batch_size, drop_last=True, prefetch_factor=16,
             num_workers=num_works, pin_memory=True, sampler=self.dist_sampler)
 
         balance_sampler = ClassAwareSampler(train_dataset)
@@ -127,7 +131,8 @@ class ImageNet_LT(object):
             batch_size=batch_size, shuffle=False,
             num_workers=num_works, pin_memory=True, sampler=balance_sampler)
 
+        self.dist_sampler_eval = torch.utils.data.distributed.DistributedSampler(eval_dataset, xm.xrt_world_size(), xm.get_ordinal(), shuffle=True) if distributed else None
         self.eval = torch.utils.data.DataLoader(
             eval_dataset,
-            batch_size=batch_size, shuffle=False,
-            num_workers=num_works, pin_memory=True)
+            batch_size=batch_size, drop_last=True, prefetch_factor=16,
+            num_workers=num_works, pin_memory=True, sampler=self.dist_sampler_eval)
