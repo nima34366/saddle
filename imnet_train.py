@@ -24,8 +24,6 @@ from utils import *
 from datasets.imagenet import ImageNet_LT
 from losses import LDAMLoss, FocalLoss
 import wandb
-import cProfile
-import pstats
 
 import torch_xla.distributed.xla_multiprocessing as xmp
 import torch_xla.core.xla_model as xm
@@ -75,7 +73,7 @@ parser.add_argument('--gpu', default=None, type=int,
 parser.add_argument('--root_log',type=str, default='log')
 parser.add_argument('--root_model', type=str, default='checkpoint')
 parser.add_argument('--log_results', action='store_true',
-                    help='use distributed model')
+                    help='to log results on wandb')
 parser.add_argument('--name', type=str, default='test')
 parser.add_argument('--distributed', action='store_true',
                     help='use distributed model')
@@ -251,13 +249,13 @@ def main_worker(args):
             warnings.warn('Sample rule is not listed')
         
         if args.loss_type == 'CE':
-            criterion = nn.CrossEntropyLoss(weight=per_cls_weights)
+            criterion = nn.CrossEntropyLoss(weight=per_cls_weights).to(device)
         elif args.loss_type == 'LDAM':
             xm.master_print("[INFORMATION] LDAM is being used")
             xm.master_print("[INFORMATION] margin value being used is ", args.margin)
-            criterion = LDAMLoss(cls_num_list=cls_num_list, max_m=args.margin, s=30, weight=per_cls_weights)
+            criterion = LDAMLoss(cls_num_list=cls_num_list, max_m=args.margin, s=30, weight=per_cls_weights).to(device)
         elif args.loss_type == 'Focal':
-            criterion = FocalLoss(weight=per_cls_weights, gamma=1)
+            criterion = FocalLoss(weight=per_cls_weights, gamma=1).to(device)
         else:
             warnings.warn('Loss type is not listed')
             return
