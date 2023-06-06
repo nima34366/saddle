@@ -232,6 +232,7 @@ def main_worker(gpu, ngpus_per_node, args):
     else:
         new_cls_num_list = cls_num_list
         class_indexes = [i for i in range(len(cls_num_list))]
+        # class_indexes = []
         class_indexes.append(-1)
         new_cls_num_list.append(len(hess_dataset.targets))
     
@@ -252,7 +253,7 @@ def main_worker(gpu, ngpus_per_node, args):
                     class_idx_dataset, batch_size=args.batch_size, shuffle=False,
                     num_workers=args.workers, pin_memory=True)
         val_acc = validate(class_loader, model, criterion, None, args, log=None, tf_writer=None, class_idx=class_idx)
-        val_accs.append(val_acc)
+        val_accs.append(val_acc.cpu().numpy())
         print(f"Val acc for class {class_idx} is {val_acc}")
         hessian_comp = hessian(model, criterion, dataloader=class_loader, cuda=True)
         top_eigenvalues, _ = hessian_comp.eigenvalues()
