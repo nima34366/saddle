@@ -30,6 +30,7 @@ import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
+import time
 
 model_names = sorted(name for name in models.__dict__
     if name.islower() and not name.startswith("__")
@@ -293,8 +294,7 @@ def validate(val_loader, model, criterion, epoch, args, log=None, tf_writer=None
     with torch.no_grad():
         end = time.time()
         for i, (input, target) in enumerate(val_loader):
-            if args.gpu is not None:
-                input = input.cuda(args.gpu, non_blocking=True)
+            input = input.cuda(args.gpu, non_blocking=True)
             target = target.cuda(args.gpu, non_blocking=True)
 
             # compute output
@@ -434,4 +434,6 @@ def gaussian(x, x0, sigma_squared):
                   (2.0 * sigma_squared)) / np.sqrt(2 * np.pi * sigma_squared)
 
 if __name__ == '__main__':
+    s_t = time.time()
     main()
+    print('Total time:', time.time()-s_t)
