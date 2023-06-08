@@ -8,7 +8,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
-import torch_xla.core.xla_model as xm
+# import torch_xla.core.xla_model as xm
 
 class ImbalancedDatasetSampler(torch.utils.data.sampler.Sampler):
 
@@ -143,7 +143,7 @@ def save_checkpoint(args, state, is_best, device = None):
     if device == None:
         torch.save(state, filename)
     else:
-        xm.save(state, filename)
+        torch.save(state, filename)
     
     if is_best:
         shutil.copyfile(filename, filename.replace('pth.tar', 'best.pth.tar'))

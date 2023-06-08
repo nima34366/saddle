@@ -37,8 +37,12 @@
 # #iNaturalist18 (SGD)
 # python inat_train.py --imb_type exp --imb_factor 0.01 --data_path inat_18 --loss_type CE --train_rule DRW --dataset inat_18 -b 256 --epochs 90 --arch resnet50 --lr 0.1 --cos_lr
 # python inat_train.py --imb_type exp --imb_factor 0.01 --data_path inat_18 --loss_type LDAM --train_rule DRW --dataset inat_18 -b 256 --epochs 90 --arch resnet50 --lr 0.1 --cos_lr --margin 0.3 --wd 0.0001
+# python inat_train.py --imb_type exp --imb_factor 0.01 --data_path inat_18 --loss_type CE --train_rule DRW --dataset inat_18 -b 256 --epochs 90 --arch resnet50 --lr 0.1 --cos_lr
+# python inat_train.py --imb_type exp --imb_factor 0.01 --data_path inat_18 --loss_type LDAM --train_rule DRW --dataset inat_18 -b 256 --epochs 90 --arch resnet50 --lr 0.1 --cos_lr --margin 0.3 --wd 0.0001
 
 # #iNaturalist18 (SAM)
+# python inat_train_sam.py --imb_type exp --imb_factor 0.01 --data_path inat_18 --loss_type CE --train_rule DRW --dataset inat_18 -b 256 --epochs 90 --arch resnet50 --cos_lr --rho_schedule step --lr 0.1 --exp_str 0 --seed 1 --rho_steps 0.05 0.1 0.1 0.2
+# python inat_train_sam.py --imb_type exp --imb_factor 0.01 --data_path inat_18 --loss_type LDAM --train_rule DRW --dataset inat_18 -b 256 --epochs 90 --arch resnet50 --cos_lr --rho_schedule step --lr 0.1 --rho_steps 0.05 0.1 0.5 0.5 --margin 0.3 --wd 0.0001
 # python inat_train_sam.py --imb_type exp --imb_factor 0.01 --data_path inat_18 --loss_type CE --train_rule DRW --dataset inat_18 -b 256 --epochs 90 --arch resnet50 --cos_lr --rho_schedule step --lr 0.1 --exp_str 0 --seed 1 --rho_steps 0.05 0.1 0.1 0.2
 # python inat_train_sam.py --imb_type exp --imb_factor 0.01 --data_path inat_18 --loss_type LDAM --train_rule DRW --dataset inat_18 -b 256 --epochs 90 --arch resnet50 --cos_lr --rho_schedule step --lr 0.1 --rho_steps 0.05 0.1 0.5 0.5 --margin 0.3 --wd 0.0001
 

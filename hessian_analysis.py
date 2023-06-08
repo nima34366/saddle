@@ -30,6 +30,7 @@ import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
+import time
 
 model_names = sorted(name for name in models.__dict__
     if name.islower() and not name.startswith("__")
@@ -232,6 +233,7 @@ def main_worker(gpu, ngpus_per_node, args):
     else:
         new_cls_num_list = cls_num_list
         class_indexes = [i for i in range(len(cls_num_list))]
+        # class_indexes = []
         class_indexes.append(-1)
         new_cls_num_list.append(len(hess_dataset.targets))
     
@@ -252,7 +254,7 @@ def main_worker(gpu, ngpus_per_node, args):
                     class_idx_dataset, batch_size=args.batch_size, shuffle=False,
                     num_workers=args.workers, pin_memory=True)
         val_acc = validate(class_loader, model, criterion, None, args, log=None, tf_writer=None, class_idx=class_idx)
-        val_accs.append(val_acc)
+        val_accs.append(val_acc.cpu().numpy())
         print(f"Val acc for class {class_idx} is {val_acc}")
         hessian_comp = hessian(model, criterion, dataloader=class_loader, cuda=True)
         top_eigenvalues, _ = hessian_comp.eigenvalues()
@@ -292,8 +294,7 @@ def validate(val_loader, model, criterion, epoch, args, log=None, tf_writer=None
     with torch.no_grad():
         end = time.time()
         for i, (input, target) in enumerate(val_loader):
-            if args.gpu is not None:
-                input = input.cuda(args.gpu, non_blocking=True)
+            input = input.cuda(args.gpu, non_blocking=True)
             target = target.cuda(args.gpu, non_blocking=True)
 
             # compute output
@@ -433,4 +434,6 @@ def gaussian(x, x0, sigma_squared):
                   (2.0 * sigma_squared)) / np.sqrt(2 * np.pi * sigma_squared)
 
 if __name__ == '__main__':
+    s_t = time.time()
     main()
+    print('Total time:', time.time()-s_t)

@@ -23,8 +23,10 @@ import torch
 import math
 from torch.autograd import Variable
 import numpy as np
+import inspect
 
 from pyhessian.utils import group_product, group_add, normalization, get_params_grad, hessian_vector_product, orthnormal
+
 
 
 class hessian():
@@ -109,7 +111,7 @@ class hessian():
         THv = [THv1 / float(num_data) for THv1 in THv]
         eigenvalue = group_product(THv, v).cpu().item()
         return eigenvalue, THv
-
+    
     def eigenvalues(self, maxIter=100, tol=1e-3, top_n=1):
         """
         compute the top_n eigenvalues using power iteration method
@@ -129,8 +131,7 @@ class hessian():
 
         while computed_dim < top_n:
             eigenvalue = None
-            v = [torch.randn(p.size()).to(device) for p in self.params
-                ]  # generate random vector
+            v = [torch.randn(p.size()).to(device) for p in self.params]  # generate random vector
             v = normalization(v)  # normalize the vector
 
             for i in range(maxIter):
@@ -198,7 +199,6 @@ class hessian():
         iter: number of iterations used to compute trace
         n_v: number of SLQ runs
         """
-
         device = self.device
         eigen_list_full = []
         weight_list_full = []
