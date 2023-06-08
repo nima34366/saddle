@@ -122,7 +122,7 @@ class ImageNet_LT(object):
         self.dist_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, xm.xrt_world_size(), xm.get_ordinal(), shuffle=True) if distributed else None
         self.train_instance = torch.utils.data.DataLoader(
             train_dataset,
-            batch_size=batch_size, drop_last=True, prefetch_factor=16,
+            batch_size=batch_size, drop_last=True, prefetch_factor=16, persistent_workers = True,
             num_workers=num_works, pin_memory=True, sampler=self.dist_sampler)
 
         balance_sampler = ClassAwareSampler(train_dataset)
@@ -134,5 +134,5 @@ class ImageNet_LT(object):
         self.dist_sampler_eval = torch.utils.data.distributed.DistributedSampler(eval_dataset, xm.xrt_world_size(), xm.get_ordinal(), shuffle=True) if distributed else None
         self.eval = torch.utils.data.DataLoader(
             eval_dataset,
-            batch_size=batch_size, drop_last=True, prefetch_factor=16,
+            batch_size=batch_size, drop_last=True, prefetch_factor=16, persistent_workers = True,
             num_workers=num_works, pin_memory=True, sampler=self.dist_sampler_eval)

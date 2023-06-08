@@ -47,7 +47,7 @@ parser.add_argument('--imb_factor', default=0.01, type=float, help='imbalance fa
 parser.add_argument('--train_rule', default='None', type=str, help='data sampling strategy for train loader')
 parser.add_argument('--rand_number', default=0, type=int, help='fix random number for data sampling')
 parser.add_argument('--exp_str', default='0', type=str, help='number to indicate which experiment it is')
-parser.add_argument('-j', '--workers', default=12, type=int, metavar='N',
+parser.add_argument('-j', '--workers', default=3, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', default=200, type=int, metavar='N',
                     help='number of total epochs to run')
@@ -333,14 +333,14 @@ def train(train_loader, model, criterion, optimizer, epoch, args, log, tf_writer
         loss = criterion(output, target)
         optimizer.zero_grad()
         loss.backward()
-        optimizer__first_step(optimizer_args={'zero_grad':True})
+        optimizer__first_step(optimizer,optimizer_args={'zero_grad':True})
         if args.log_results:
             wandb.log({'loss1':loss})
 
         output = model(input)
         loss = criterion(output, target)
         loss.backward()
-        optimizer__second_step(optimizer_args={'zero_grad':True})
+        optimizer__second_step(optimizer,optimizer_args={'zero_grad':True})
 
         # measure accuracy and record loss
         acc1, acc5 = accuracy(output, target, topk=(1, 5))
@@ -426,9 +426,7 @@ def validate(val_loader, model, criterion, epoch, args, log=None, tf_writer=None
         cls_acc = cls_hit / cls_cnt
 
         if args.dataset == 'imagenet':
-          
             head_acc = cls_acc[args.head_class_idx[0]:args.head_class_idx[1]].mean() * 100
-
             med_acc = cls_acc[args.med_class_idx[0]:args.med_class_idx[1]].mean() * 100
             tail_acc = cls_acc[args.tail_class_idx[0]:args.tail_class_idx[1]].mean() * 100
             xm.master_print(f"The head accuracy is {head_acc}\n")
@@ -436,8 +434,6 @@ def validate(val_loader, model, criterion, epoch, args, log=None, tf_writer=None
             xm.master_print(f"The tail accuracy is {tail_acc}\n")
             if args.log_results:
               wandb.log({'head_acc':head_acc, 'med_acc':med_acc, 'tail_acc':tail_acc})
-        
-              
         output = ('{flag} Results: Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f} Loss {loss.avg:.5f}'
                 .format(flag=flag, top1=top1, top5=top5, loss=losses))
         out_cls_acc = '%s Class Accuracy: %s'%(flag,(np.array2string(cls_acc, separator=',', formatter={'float_kind':lambda x: "%.3f" % x})))
