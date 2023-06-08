@@ -253,7 +253,7 @@ def main_worker(args):
         elif args.loss_type == 'LDAM':
             xm.master_print("[INFORMATION] LDAM is being used")
             xm.master_print("[INFORMATION] margin value being used is ", args.margin)
-            criterion = LDAMLoss(cls_num_list=cls_num_list, max_m=args.margin, s=30, weight=per_cls_weights).to(device)
+            criterion = LDAMLoss(cls_num_list=cls_num_list, max_m=args.margin, s=30, weight=per_cls_weights, device=device).to(device)
         elif args.loss_type == 'Focal':
             criterion = FocalLoss(weight=per_cls_weights, gamma=1).to(device)
         else:

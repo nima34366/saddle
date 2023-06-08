@@ -47,9 +47,10 @@
 # python inat_train_sam.py --imb_type exp --imb_factor 0.01 --data_path inat_18 --loss_type LDAM --train_rule DRW --dataset inat_18 -b 256 --epochs 90 --arch resnet50 --cos_lr --rho_schedule step --lr 0.1 --rho_steps 0.05 0.1 0.5 0.5 --margin 0.3 --wd 0.0001
 
 # #ImageNet-LT (SGD)
-# python3 imnet_train.py --imb_type exp --imb_factor 0.01 --data_path /mnt/disks/persist/imagenet --loss_type CE --train_rule None --dataset imagenet -b 512 --epochs 90 --arch resnet50 --cos_lr --lr 0.2 --distributed
-# python3 imnet_train.py --imb_type exp --imb_factor 0.01 --data_path ImageNet --loss_type LDAM --train_rule DRW --dataset imagenet -b 256 --epochs 90 --arch resnet50 --wd 2e-4 --lr 0.2 --cos_lr --margin 0.3 
+python3 imnet_train.py --imb_type exp --imb_factor 0.01 --data_path /mnt/disks/persist/imagenet --loss_type CE --train_rule DRW --dataset imagenet -b 512 --epochs 120 --arch resnet50 --cos_lr --lr 0.2 --distributed
+python3 imnet_train.py --imb_type exp --imb_factor 0.01 --data_path /mnt/disks/persist/imagenet --loss_type LDAM --train_rule DRW --dataset imagenet -b 512 --epochs 120 --arch resnet50 --wd 2e-4 --lr 0.2 --cos_lr --margin 0.3 --distributed
 
 # #ImageNet-LT (SAM)
-python3 imnet_train_sam.py --imb_type exp --imb_factor 0.01 --data_path /mnt/disks/persist/imagenet --loss_type CE --train_rule DRW --dataset imagenet -b 512 --epochs 90 --arch resnet50 --cos_lr --rho_schedule step --lr 0.2 --rho_steps 0.05 0.1 0.5 0.5
-# python3 imnet_train_sam.py --imb_type exp --imb_factor 0.01 --data_path ImageNet --loss_type LDAM --train_rule DRW --dataset imagenet -b 256 --epochs 90 --arch resnet50 --cos_lr --rho_schedule step --lr 0.2 --rho_steps 0.05 0.1 0.5 0.5 --wd 2e-4 --margin 0.3
+python3 imnet_train_sam.py --imb_type exp --imb_factor 0.01 --data_path /mnt/disks/persist/imagenet --loss_type CE --train_rule DRW --dataset imagenet -b 128 --epochs 120 --arch resnet50 --cos_lr --rho_schedule step --lr 0.2 --rho_steps 0.05 0.1 0.5 0.5 --distributed
+python3 imnet_train_sam.py --imb_type exp --imb_factor 0.01 --data_path /mnt/disks/persist/imagenet --loss_type LDAM --train_rule DRW --dataset imagenet -b 128 --epochs 120 --arch resnet50 --cos_lr --rho_schedule step --lr 0.2 --rho_steps 0.05 0.1 0.5 0.5 --wd 2e-4 --margin 0.3 --distributed
+sudo poweroff

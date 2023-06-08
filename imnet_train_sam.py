@@ -47,7 +47,7 @@ parser.add_argument('--imb_factor', default=0.01, type=float, help='imbalance fa
 parser.add_argument('--train_rule', default='None', type=str, help='data sampling strategy for train loader')
 parser.add_argument('--rand_number', default=0, type=int, help='fix random number for data sampling')
 parser.add_argument('--exp_str', default='0', type=str, help='number to indicate which experiment it is')
-parser.add_argument('-j', '--workers', default=3, type=int, metavar='N',
+parser.add_argument('-j', '--workers', default=12, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', default=200, type=int, metavar='N',
                     help='number of total epochs to run')
@@ -223,6 +223,7 @@ def main_worker(args):
         f.write(str(args))
     tf_writer = SummaryWriter(log_dir=os.path.join(args.root_log, args.store_name))
     for epoch in range(args.start_epoch, args.epochs):
+        epoch_start = time.time()
         adjust_rho(optimizer, epoch, args)
         for param_group in optimizer.param_groups:
             lr = param_group['lr']
@@ -259,7 +260,7 @@ def main_worker(args):
         elif args.loss_type == 'LDAM':
             xm.master_print("[INFORMATION] LDAM is being used")
             xm.master_print("[INFORMATION] margin value being used is ", args.margin)
-            criterion = LDAMLoss(cls_num_list=cls_num_list, max_m=args.margin, s=30, weight=per_cls_weights).to(device)
+            criterion = LDAMLoss(cls_num_list=cls_num_list, max_m=args.margin, s=30, weight=per_cls_weights, device=device).to(device)
         elif args.loss_type == 'Focal':
             criterion = FocalLoss(weight=per_cls_weights, gamma=1).to(device)
         else:
@@ -304,6 +305,7 @@ def main_worker(args):
                 'best_acc1': best_acc1,
                 'optimizer' : optimizer.state_dict(),
             }, is_best, device=device)
+        xm.master_print('\nTime for epoch: ',time.time()-epoch_start,'\n')
     if args.log_results:
         wandb.log({'best_acc':best_acc1})
 
@@ -321,7 +323,6 @@ def train(train_loader, model, criterion, optimizer, epoch, args, log, tf_writer
     # for i, (input, target) in enumerate(train_loader):
     para_loader = pl.ParallelLoader(enumerate(train_loader), [xm.xla_device()])
     for i, (input, target) in para_loader.per_device_loader(xm.xla_device()):
-
         # measure data loading time
         data_time.update(time.time() - end)
 
