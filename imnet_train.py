@@ -25,16 +25,6 @@ from datasets.imagenet import ImageNet_LT
 from losses import LDAMLoss, FocalLoss
 import wandb
 
-import torch_xla.distributed.xla_multiprocessing as xmp
-import torch_xla.core.xla_model as xm
-import torch_xla.distributed.parallel_loader as pl
-
-
-os.environ['XRT_TPU_CONFIG'] = "localservice;0;localhost:51011"
-os.environ['XLA_USE_BF16']                 = '1'
-
-
-
 parser = argparse.ArgumentParser(description='PyTorch Training')
 parser.add_argument('--dataset', default='imagenet', help='dataset setting')
 parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet50'),
@@ -44,7 +34,7 @@ parser.add_argument('--imb_factor', default=0.01, type=float, help='imbalance fa
 parser.add_argument('--train_rule', default='None', type=str, help='data sampling strategy for train loader')
 parser.add_argument('--rand_number', default=0, type=int, help='fix random number for data sampling')
 parser.add_argument('--exp_str', default='0', type=str, help='number to indicate which experiment it is')
-parser.add_argument('-j', '--workers', default=12, type=int, metavar='N',
+parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', default=200, type=int, metavar='N',
                     help='number of total epochs to run')
@@ -73,7 +63,7 @@ parser.add_argument('--gpu', default=None, type=int,
 parser.add_argument('--root_log',type=str, default='log')
 parser.add_argument('--root_model', type=str, default='checkpoint')
 parser.add_argument('--log_results', action='store_true',
-                    help='to log results on wandb')
+                    help='use distributed model')
 parser.add_argument('--name', type=str, default='test')
 parser.add_argument('--distributed', action='store_true',
                     help='use distributed model')
@@ -95,13 +85,11 @@ parser.add_argument('--margin', default=0.5, type=float, metavar='M',
 best_acc1 = 0
 
 
-def main(rank, flags):
-    global device
-    device = xm.xla_device()
+def main():
     args = parser.parse_args()
     sched = 'cos' if args.cos_lr else ''
     args.store_name = '_'.join([args.dataset, args.arch, args.loss_type, args.train_rule, args.imb_type, str(args.imb_factor), args.exp_str])
-    xm.master_print("The args.store name is", args.store_name)
+    print("The args.store name is", args.store_name)
     prepare_folders(args)
     if args.seed is not None:
         random.seed(args.seed)
@@ -117,25 +105,26 @@ def main(rank, flags):
         warnings.warn('You have chosen a specific GPU. This will completely '
                       'disable data parallelism.')
 
-    # ngpus_per_node = torch.cuda.device_count()
-    main_worker(args)
+    ngpus_per_node = torch.cuda.device_count()
+    main_worker(args.gpu, ngpus_per_node, args)
 
 
-def main_worker(args):
+def main_worker(gpu, ngpus_per_node, args):
     global best_acc1
+    args.gpu = gpu
     args.head_class_idx = [0,390]
     args.med_class_idx = [390,835]
     args.tail_class_idx = [835,1000]
     if args.log_results:
-        wandb.init(project="saddle",
-                                   entity="nimawickramasinghe", name=args.store_name,
+        wandb.init(project="long-tail",
+                                   entity="long-tail", name=args.store_name,
                                    dir=args.wandb_dir)
         wandb.config.update(args)
     if args.gpu is not None:
-        xm.master_print("Use GPU: {} for training".format(args.gpu))
+        print("Use GPU: {} for training".format(args.gpu))
 
     # create model
-    xm.master_print("[INFORMATION] creating model '{}'".format(args.arch))
+    print("[INFORMATION] creating model '{}'".format(args.arch))
     num_classes = 1000 
     use_norm = True if args.loss_type == 'LDAM' else False
     if args.arch == 'resnet50':
@@ -145,24 +134,24 @@ def main_worker(args):
         warnings.warn("Add support for other models apart from resnet50")
     if use_norm:
       model.fc = NormedLinear(2048, num_classes)
-      xm.master_print("[INFORMATION] Using normed linear")
+      print("[INFORMATION] Using normed linear")
     else:
       model.fc = nn.Linear(2048, num_classes)
-    model = model.to(device)
+    model = model.cuda(args.gpu)
     # DataParallel will divide and allocate batch_size to all available GPUs
-    # model = torch.nn.DataParallel(model).to(device)
+    model = torch.nn.DataParallel(model).cuda()
     optimizer = torch.optim.SGD(model.parameters(), args.lr,
                                 momentum=args.momentum,
                                 weight_decay=args.weight_decay)
     if args.cos_lr == True:
-      xm.master_print("[INFORMATION] Using cosine lr_scheduler")
+      print("[INFORMATION] Using cosine lr_scheduler")
       scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs, eta_min=args.end_lr_cos)
 
     # optionally resume from a checkpoint
     if args.resume:
         if os.path.isfile(args.resume):
-            xm.master_print("[INFORMATION] loading checkpoint '{}'".format(args.resume))
-            checkpoint = torch.load(args.resume, map_location=device)
+            print("[INFORMATION] loading checkpoint '{}'".format(args.resume))
+            checkpoint = torch.load(args.resume, map_location='cuda:0')
             args.start_epoch = checkpoint['epoch']
             best_acc1 = checkpoint['best_acc1']
             if args.gpu is not None:
@@ -172,12 +161,12 @@ def main_worker(args):
             optimizer.load_state_dict(checkpoint['optimizer'])
             if args.cos_lr == True:
               scheduler.load_state_dict(checkpoint['scheduler'])
-            xm.master_print("[INFORMATION] loaded checkpoint '{}' (epoch {})"
+            print("[INFORMATION] loaded checkpoint '{}' (epoch {})"
                   .format(args.resume, checkpoint['epoch']))
         else:
-            xm.master_print("[INFORMATION] no checkpoint found at '{}'".format(args.resume))
+            print("[INFORMATION] no checkpoint found at '{}'".format(args.resume))
 
-    # cudnn.benchmark = True
+    cudnn.benchmark = True
 
     # Data loading code
 
@@ -194,14 +183,14 @@ def main_worker(args):
     ])
 
     if args.dataset == 'imagenet':
-      xm.master_print("[INFORMATION] Extracting images from Imagenet")
+      print("[INFORMATION] Extracting images from Imagenet")
       dataset = ImageNet_LT(args.distributed, root=args.data_path,
                               batch_size=args.batch_size, num_works=args.workers)
       cls_num_list = dataset.cls_num_list
       args.cls_num_list = dataset.cls_num_list
 
-      xm.master_print("The class list for imagenet(initial 20) is ", dataset.cls_num_list[:20])
-      xm.master_print("The class list for imagenet(last 20) is ", dataset.cls_num_list[-20:])
+      print("The class list for imagenet(initial 20) is ", dataset.cls_num_list[:20])
+      print("The class list for imagenet(last 20) is ", dataset.cls_num_list[-20:])
     else:
         warnings.warn('Dataset is not listed')
         return
@@ -236,7 +225,7 @@ def main_worker(args):
             effective_num = 1.0 - np.power(beta, cls_num_list)
             per_cls_weights = (1.0 - beta) / np.array(effective_num)
             per_cls_weights = per_cls_weights / np.sum(per_cls_weights) * len(cls_num_list)
-            per_cls_weights = torch.FloatTensor(per_cls_weights).to(device)
+            per_cls_weights = torch.FloatTensor(per_cls_weights).cuda(args.gpu)
         elif args.train_rule == 'DRW':
             train_sampler = None
             idx = epoch // 60
@@ -244,18 +233,18 @@ def main_worker(args):
             effective_num = 1.0 - np.power(betas[idx], cls_num_list)
             per_cls_weights = (1.0 - betas[idx]) / np.array(effective_num)
             per_cls_weights = per_cls_weights / np.sum(per_cls_weights) * len(cls_num_list)
-            per_cls_weights = torch.FloatTensor(per_cls_weights).to(device)
+            per_cls_weights = torch.FloatTensor(per_cls_weights).cuda(args.gpu)
         else:
             warnings.warn('Sample rule is not listed')
         
         if args.loss_type == 'CE':
-            criterion = nn.CrossEntropyLoss(weight=per_cls_weights).to(device)
+            criterion = nn.CrossEntropyLoss(weight=per_cls_weights).cuda(args.gpu)
         elif args.loss_type == 'LDAM':
-            xm.master_print("[INFORMATION] LDAM is being used")
-            xm.master_print("[INFORMATION] margin value being used is ", args.margin)
-            criterion = LDAMLoss(cls_num_list=cls_num_list, max_m=args.margin, s=30, weight=per_cls_weights).to(device)
+            print("[INFORMATION] LDAM is being used")
+            print("[INFORMATION] margin value being used is ", args.margin)
+            criterion = LDAMLoss(cls_num_list=cls_num_list, max_m=args.margin, s=30, weight=per_cls_weights).cuda(args.gpu)
         elif args.loss_type == 'Focal':
-            criterion = FocalLoss(weight=per_cls_weights, gamma=1).to(device)
+            criterion = FocalLoss(weight=per_cls_weights, gamma=1).cuda(args.gpu)
         else:
             warnings.warn('Loss type is not listed')
             return
@@ -277,28 +266,28 @@ def main_worker(args):
 
         tf_writer.add_scalar('acc/test_top1_best', best_acc1, epoch)
         output_best = 'Best Prec@1: %.3f\n' % (best_acc1)
-        xm.master_print(output_best)
+        print(output_best)
         log_testing.write(output_best + '\n')
         log_testing.flush()
         if args.cos_lr == True:
-            save_checkpoint(args, {
-                'epoch': epoch + 1,
-                'arch': args.arch,
-                'state_dict': model.state_dict(),
-                'best_acc1': best_acc1,
-                'optimizer' : optimizer.state_dict(),
-                'scheduler': scheduler.state_dict(),
-            }, is_best, device=device)
-        
+          save_checkpoint(args, {
+              'epoch': epoch + 1,
+              'arch': args.arch,
+              'state_dict': model.state_dict(),
+              'best_acc1': best_acc1,
+              'optimizer' : optimizer.state_dict(),
+              'scheduler': scheduler.state_dict(),
+          }, is_best)
+            
         else:
 
-            save_checkpoint(args, {
-                'epoch': epoch + 1,
-                'arch': args.arch,
-                'state_dict': model.state_dict(),
-                'best_acc1': best_acc1,
-                'optimizer' : optimizer.state_dict(),
-            }, is_best, device=device)
+          save_checkpoint(args, {
+              'epoch': epoch + 1,
+              'arch': args.arch,
+              'state_dict': model.state_dict(),
+              'best_acc1': best_acc1,
+              'optimizer' : optimizer.state_dict(),
+          }, is_best)
     if args.log_results:
         wandb.log({'best_acc':best_acc1})
 
@@ -313,19 +302,18 @@ def train(train_loader, model, criterion, optimizer, epoch, args, log, tf_writer
     model.train()
 
     end = time.time()
-    # for i, (input, target) in enumerate(train_loader):
-    para_loader = pl.ParallelLoader(enumerate(train_loader), [xm.xla_device()])
-    for i, (input, target) in para_loader.per_device_loader(xm.xla_device()):
-
+    for i, (input, target) in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)
 
-        input = input.to(device)
-        target = target.to(device)
+        if args.gpu is not None:
+            input = input.cuda(args.gpu, non_blocking=True)
+        target = target.cuda(args.gpu, non_blocking=True)
 
         # compute output
         output = model(input)
         loss = criterion(output, target)
+
         # measure accuracy and record loss
         acc1, acc5 = accuracy(output, target, topk=(1, 5))
 
@@ -338,8 +326,8 @@ def train(train_loader, model, criterion, optimizer, epoch, args, log, tf_writer
         # compute gradient and do SGD step
         optimizer.zero_grad()
         loss.backward()
-        # optimizer.step()
-        xm.optimizer_step(optimizer)
+        optimizer.step()
+
         # measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()
@@ -353,15 +341,14 @@ def train(train_loader, model, criterion, optimizer, epoch, args, log, tf_writer
                       'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
                 epoch, i, len(train_loader), batch_time=batch_time,
                 data_time=data_time, loss=losses, top1=top1, top5=top5, lr=optimizer.param_groups[-1]['lr'] * 0.1))  # TODO
-            xm.master_print(output)
-            if xm.is_master_ordinal():
-                log.write(output + '\n')
-                log.flush()
-    if xm.is_master_ordinal():
-        tf_writer.add_scalar('loss/train', losses.avg, epoch)
-        tf_writer.add_scalar('acc/train_top1', top1.avg, epoch)
-        tf_writer.add_scalar('acc/train_top5', top5.avg, epoch)
-        tf_writer.add_scalar('lr', optimizer.param_groups[-1]['lr'], epoch)
+            print(output)
+            log.write(output + '\n')
+            log.flush()
+
+    tf_writer.add_scalar('loss/train', losses.avg, epoch)
+    tf_writer.add_scalar('acc/train_top1', top1.avg, epoch)
+    tf_writer.add_scalar('acc/train_top5', top5.avg, epoch)
+    tf_writer.add_scalar('lr', optimizer.param_groups[-1]['lr'], epoch)
 
 def validate(val_loader, model, criterion, epoch, args, log=None, tf_writer=None, flag='val'):
     batch_time = AverageMeter('Time', ':6.3f')
@@ -375,10 +362,10 @@ def validate(val_loader, model, criterion, epoch, args, log=None, tf_writer=None
     all_targets = []
     with torch.no_grad():
         end = time.time()
-        para_loader = pl.ParallelLoader(enumerate(val_loader), [xm.xla_device()])
-        for i, (input, target) in para_loader.per_device_loader(xm.xla_device()):
-            input = input.to(device)
-            target = target.to(device)
+        for i, (input, target) in enumerate(val_loader):
+            if args.gpu is not None:
+                input = input.cuda(args.gpu, non_blocking=True)
+            target = target.cuda(args.gpu, non_blocking=True)
 
             # compute output
             output = model(input) #bs, num_classes
@@ -406,9 +393,9 @@ def validate(val_loader, model, criterion, epoch, args, log=None, tf_writer=None
                           'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
                     i, len(val_loader), batch_time=batch_time, loss=losses,
                     top1=top1, top5=top5))
-                xm.master_print(output)
+                print(output)
         cf = confusion_matrix(all_targets, all_preds).astype(float)
-        xm.master_print("The size of the cf is", cf.shape)
+        print("The size of the cf is", cf.shape)
         cls_cnt = cf.sum(axis=1)
         cls_hit = np.diag(cf) #num of correct preds
         cls_acc = cls_hit / cls_cnt
@@ -419,9 +406,9 @@ def validate(val_loader, model, criterion, epoch, args, log=None, tf_writer=None
 
             med_acc = cls_acc[args.med_class_idx[0]:args.med_class_idx[1]].mean() * 100
             tail_acc = cls_acc[args.tail_class_idx[0]:args.tail_class_idx[1]].mean() * 100
-            xm.master_print(f"The head accuracy is {head_acc}\n")
-            xm.master_print(f"The med accuracy is {med_acc}\n")
-            xm.master_print(f"The tail accuracy is {tail_acc}\n")
+            print(f"The head accuracy is {head_acc}\n")
+            print(f"The med accuracy is {med_acc}\n")
+            print(f"The tail accuracy is {tail_acc}\n")
             if args.log_results:
               wandb.log({'head_acc':head_acc, 'med_acc':med_acc, 'tail_acc':tail_acc})
         
@@ -430,17 +417,17 @@ def validate(val_loader, model, criterion, epoch, args, log=None, tf_writer=None
                 .format(flag=flag, top1=top1, top5=top5, loss=losses))
         out_cls_acc = '%s Class Accuracy: %s'%(flag,(np.array2string(cls_acc, separator=',', formatter={'float_kind':lambda x: "%.3f" % x})))
         if log is not None:
-            if xm.is_master_ordinal():
-                log.write(output + '\n')
-                log.write(out_cls_acc + '\n')
-                log.flush()
-        if xm.is_master_ordinal():
-            tf_writer.add_scalar('loss/test_'+ flag, losses.avg, epoch)
-            tf_writer.add_scalar('acc/test_' + flag + '_top1', top1.avg, epoch)
-            tf_writer.add_scalar('acc/test_' + flag + '_top5', top5.avg, epoch)
-            tf_writer.add_scalars('acc/test_' + flag + '_cls_acc', {str(i):x for i, x in enumerate(cls_acc)}, epoch)
+            log.write(output + '\n')
+            log.write(out_cls_acc + '\n')
+            log.flush()
+
+        tf_writer.add_scalar('loss/test_'+ flag, losses.avg, epoch)
+        tf_writer.add_scalar('acc/test_' + flag + '_top1', top1.avg, epoch)
+        tf_writer.add_scalar('acc/test_' + flag + '_top5', top5.avg, epoch)
+        tf_writer.add_scalars('acc/test_' + flag + '_cls_acc', {str(i):x for i, x in enumerate(cls_acc)}, epoch)
 
     return top1.avg
+
 
 def adjust_learning_rate(optimizer, epoch, args):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
@@ -457,5 +444,4 @@ def adjust_learning_rate(optimizer, epoch, args):
         param_group['lr'] = lr
 
 if __name__ == '__main__':
-    xmp.spawn(main, args=({},), nprocs=8, start_method='fork')
-    
+    main()
