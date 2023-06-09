@@ -1,7 +1,7 @@
 .swp
 .pth
 *.pth.tar
-log
+# log
 checkpoint
 data
 wandb
@@ -14,6 +14,7 @@ datasets/Imagenet
 __pycache__/
 *.py[cod]
 *$py.class
+*tfevents*
 
 # C extensions
 *.so
